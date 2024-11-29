@@ -1,6 +1,10 @@
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 import sys
+import subprocess
+from tabulate import tabulate
+
+import subprocess
 
 # Initialize AWS EC2 Client
 def init():
@@ -104,7 +108,27 @@ def list_images(ec2):
     except Exception as e:
         print(f"Error while listing images: {e}")
 
+# Condor status
+import subprocess
 
+def condor_status():
+    try:
+        result = subprocess.run(
+            ["/absolute/path/to/condor_status"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        if result.returncode == 0:
+            return result.stdout
+        else:
+            print(f"Error: {result.stderr}")
+    except Exception as e:
+        print(f"Exception occurred: {e}")
+
+
+
+# Main menu
 def main():
     ec2 = init()
     while True:
@@ -113,9 +137,8 @@ def main():
         print("  3. Start instance              4. Available regions")
         print("  5. Stop instance               6. Create instance")
         print("  7. Reboot instance             8. List images")
-        print("                                99. Quit")
+        print("  9. Condor status               99. Quit")
         print("------------------------------------------------------------")
-
 
         choice = input("Enter an integer: ")
         if not choice.isdigit():
@@ -147,6 +170,8 @@ def main():
                 reboot_instance(ec2, instance_id)
         elif choice == 8:
             list_images(ec2)
+        elif choice == 9:
+            condor_status()
         elif choice == 99:
             print("Goodbye!")
             break
@@ -155,11 +180,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-# condor_status function
