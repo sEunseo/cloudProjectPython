@@ -110,7 +110,6 @@ def list_images(ec2):
 
 # Condor status
 import subprocess
-
 def condor_status():
     try:
         result = subprocess.run(
@@ -128,6 +127,7 @@ def condor_status():
 
 
 
+
 # Main menu
 def main():
     ec2 = init()
@@ -137,7 +137,7 @@ def main():
         print("  3. Start instance              4. Available regions")
         print("  5. Stop instance               6. Create instance")
         print("  7. Reboot instance             8. List images")
-        print("  9. Condor status               99. Quit")
+        print("  9. condor_status               99. Quit")
         print("------------------------------------------------------------")
 
         choice = input("Enter an integer: ")
