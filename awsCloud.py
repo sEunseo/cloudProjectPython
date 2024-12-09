@@ -2,9 +2,9 @@ import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 import sys
 import subprocess
-from tabulate import tabulate
+import os
+import time
 
-import subprocess
 
 # Initialize AWS EC2 Client
 def init():
@@ -96,10 +96,7 @@ def create_instance(ec2, ami_id):
 def list_images(ec2):
     print("Listing images....")
     try:
-        # Retrieve images owned by the user (self) or public images as a fallback
         response = ec2.describe_images(Owners=['self'])
-        
-        # Display the images if found
         if 'Images' in response and response['Images']:
             for image in response['Images']:
                 print(f"[ImageID] {image['ImageId']}, [Name] {image.get('Name', 'N/A')}, [Owner] {image['OwnerId']}")
@@ -109,21 +106,84 @@ def list_images(ec2):
         print(f"Error while listing images: {e}")
 
 # Condor status
-import subprocess
-def condor_status():
+def get_running_instances(ec2_client, filters=None):
+    """
+    Retrieve a list of running EC2 instances.
+    :param ec2_client: Boto3 EC2 client.
+    :param filters: Optional filters to narrow down the instances (e.g., tags).
+    :return: List of instance IDs.
+    """
+    filters = filters or [{"Name": "instance-state-name", "Values": ["running"]}]
+    
+    response = ec2_client.describe_instances(Filters=filters)
+    instance_ids = []
+    
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            instance_ids.append(instance["InstanceId"])
+    
+    return instance_ids
+
+def run_command_on_instance(instance_id, command):
+    """
+    Execute a command on an EC2 instance using AWS SSM.
+    :param instance_id: The ID of the EC2 instance.
+    :param command: The shell command to execute.
+    :return: The output of the command.
+    """
+    ssm_client = boto3.client('ssm', region_name='us-east-1')
+
     try:
-        result = subprocess.run(
-            ["/absolute/path/to/condor_status"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+        # Send command to the instance
+        response = ssm_client.send_command(
+            InstanceIds=[instance_id],
+            DocumentName="AWS-RunShellScript",
+            Parameters={"commands": [command]},
         )
-        if result.returncode == 0:
-            return result.stdout
-        else:
-            print(f"Error: {result.stderr}")
+
+        command_id = response["Command"]["CommandId"]
+        print(f"Command sent. Command ID: {command_id}")
+        
+        # Wait for the command to complete
+        time.sleep(2)
+        result = ssm_client.get_command_invocation(
+            CommandId=command_id,
+            InstanceId=instance_id,
+        )
+
+        print(f"Command output from instance {instance_id}:\n")
+        return result["StandardOutputContent"]
+
+
     except Exception as e:
-        print(f"Exception occurred: {e}")
+        print(f"An error occurred: {e}")
+        return None
+
+def condor_status():
+    ec2_client = boto3.client("ec2", region_name="us-east-1")
+    
+    print("Fetching running EC2 instances...")
+    instance_ids = get_running_instances(ec2_client)
+
+    if not instance_ids:
+        print("No running EC2 instances found.")
+        return
+
+    print(f"Found {len(instance_ids)} running instance(s): {instance_ids}")
+    condor_command = "condor_status"
+
+    for instance_id in instance_ids:
+        try:
+            print(f"Running '{condor_command}' on instance {instance_id}...")
+            output = run_command_on_instance(instance_id, condor_command)
+            
+            if output:
+                print(f"\nHTCondor Resource Status for instance {instance_id}:\n")
+                print(output)
+            else:
+                print(f"Failed to retrieve condor_status for instance {instance_id}.")
+        except Exception as e:
+            print(f"An error occurred while processing instance {instance_id}: {e}")
 
 
 
@@ -133,6 +193,8 @@ def main():
     ec2 = init()
     while True:
         print("\n" + "------------------------------------------------------------")
+        print("             Amazon AWS Control Panel using SDK             ")
+        print("------------------------------------------------------------")
         print("  1. List instances              2. Available zones")
         print("  3. Start instance              4. Available regions")
         print("  5. Stop instance               6. Create instance")
@@ -177,6 +239,11 @@ def main():
             break
         else:
             print("Invalid choice. Please try again.")
+
+
+
+
+
 
 if __name__ == "__main__":
     main()
